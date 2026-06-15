@@ -11,6 +11,43 @@ html.theme-switching * {
   transition: none !important;
 }
 
+.calendar-scroll-main {
+  scrollbar-width: none;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.calendar-scroll-main::-webkit-scrollbar {
+  display: none;
+}
+
+.calendar-scroll-top {
+  height: 14px;
+  touch-action: pan-x;
+}
+
+.calendar-scroll-top::-webkit-scrollbar {
+  height: 10px;
+}
+
+.calendar-scroll-top::-webkit-scrollbar-track {
+  @apply rounded-full bg-slate-200 dark:bg-slate-800;
+}
+
+.calendar-scroll-top::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-slate-400 dark:bg-slate-500;
+}
+
+.calendar-scroll-top {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184) rgb(226 232 240);
+}
+
+.dark .calendar-scroll-top {
+  scrollbar-color: rgb(100 116 139) rgb(30 41 59);
+}
+
 body {
   margin: 0;
   font-family:
