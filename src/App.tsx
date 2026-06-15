@@ -474,7 +474,7 @@ function App() {
 
         {activeTab === 'register' && (
           <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300">
-            PCはドラッグで連続選択。スマホはタップで切り替え、押しながら横スワイプでカレンダーを移動。
+            PCはドラッグで連続選択。スマホはタップで切り替え。日付表示などボタン以外を押しながら横スワイプでカレンダーを移動。
           </div>
         )}
 
@@ -493,7 +493,7 @@ function App() {
                   key={dateKey}
                   className="w-40 shrink-0 rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:w-44 dark:border-slate-700 dark:bg-slate-900"
                 >
-                  <h2 className="mb-3 text-center text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <h2 className="calendar-scroll-handle mb-3 text-center text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {formatDisplayDate(dateKey)}
                   </h2>
 
@@ -555,7 +555,7 @@ function App() {
                         return (
                           <div
                             key={`${dateKey}-${hour}`}
-                            className={`flex items-center justify-between rounded-md px-2 py-1.5 text-xs ${cellClassForGather(
+                            className={`calendar-scroll-handle flex items-center justify-between rounded-md px-2 py-1.5 text-xs ${cellClassForGather(
                               count,
                             )}`}
                           >

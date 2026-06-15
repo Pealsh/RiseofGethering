@@ -52,6 +52,13 @@ type GestureState = {
   mode: GestureMode
 }
 
+const isScrollBlockedTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof Element)) {
+    return true
+  }
+  return !!target.closest('button, a, input, select, textarea, label')
+}
+
 export function CalendarScroll({ children }: CalendarScrollProps) {
   const topRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLDivElement>(null)
@@ -59,6 +66,7 @@ export function CalendarScroll({ children }: CalendarScrollProps) {
   const gestureRef = useRef<GestureState | null>(null)
   const scrollGestureRef = useRef(false)
   const syncingRef = useRef(false)
+  const setScrollLeftRef = useRef<(scrollLeft: number) => void>(() => {})
   const [contentWidth, setContentWidth] = useState(0)
   const [isScrollDragging, setIsScrollDragging] = useState(false)
 
@@ -69,6 +77,28 @@ export function CalendarScroll({ children }: CalendarScrollProps) {
     scrollGestureRef.current = false
     return true
   }, [])
+
+  const setScrollLeft = useCallback((scrollLeft: number): void => {
+    const main = mainRef.current
+    const top = topRef.current
+    if (!main) {
+      return
+    }
+
+    const maxScroll = main.scrollWidth - main.clientWidth
+    const next = Math.max(0, Math.min(scrollLeft, maxScroll))
+
+    syncingRef.current = true
+    main.scrollLeft = next
+    if (top) {
+      top.scrollLeft = next
+    }
+    requestAnimationFrame(() => {
+      syncingRef.current = false
+    })
+  }, [])
+
+  setScrollLeftRef.current = setScrollLeft
 
   useEffect(() => {
     const inner = innerRef.current
@@ -86,23 +116,6 @@ export function CalendarScroll({ children }: CalendarScrollProps) {
     return () => observer.disconnect()
   }, [children])
 
-  const setScrollLeft = useCallback((scrollLeft: number): void => {
-    const main = mainRef.current
-    const top = topRef.current
-    if (!main) {
-      return
-    }
-
-    syncingRef.current = true
-    main.scrollLeft = scrollLeft
-    if (top) {
-      top.scrollLeft = scrollLeft
-    }
-    requestAnimationFrame(() => {
-      syncingRef.current = false
-    })
-  }, [])
-
   const syncFromTop = (): void => {
     if (syncingRef.current || !topRef.current || !mainRef.current) {
       return
@@ -117,37 +130,22 @@ export function CalendarScroll({ children }: CalendarScrollProps) {
     setScrollLeft(mainRef.current.scrollLeft)
   }
 
-  const endGesture = (event: React.PointerEvent<HTMLDivElement>): void => {
+  const endGesture = (pointerId: number): void => {
     const main = mainRef.current
     const state = gestureRef.current
-    if (!state) {
+    if (!state || state.pointerId !== pointerId) {
       return
     }
 
-    if (state.mode === 'scroll' && main?.hasPointerCapture(event.pointerId)) {
-      main.releasePointerCapture(event.pointerId)
+    if (state.mode === 'scroll' && main?.hasPointerCapture(pointerId)) {
+      main.releasePointerCapture(pointerId)
     }
 
     gestureRef.current = null
     setIsScrollDragging(false)
   }
 
-  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
-    const main = mainRef.current
-    if (!main || event.button > 0) {
-      return
-    }
-
-    gestureRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      startScrollLeft: main.scrollLeft,
-      mode: 'pending',
-    }
-  }
-
-  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
+  const handlePointerMove = (event: PointerEvent): void => {
     const main = mainRef.current
     const state = gestureRef.current
     if (!main || !state || state.pointerId !== event.pointerId) {
@@ -180,30 +178,59 @@ export function CalendarScroll({ children }: CalendarScrollProps) {
     }
 
     event.preventDefault()
-    setScrollLeft(state.startScrollLeft - deltaX)
+    setScrollLeftRef.current(state.startScrollLeft - deltaX)
   }
 
-  const onPointerUp = (event: React.PointerEvent<HTMLDivElement>): void => {
-    endGesture(event)
+  const handlePointerUp = (event: PointerEvent): void => {
+    endGesture(event.pointerId)
+  }
+
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const main = mainRef.current
+    if (!main || event.button > 0 || isScrollBlockedTarget(event.target)) {
+      return
+    }
+
+    gestureRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startScrollLeft: main.scrollLeft,
+      mode: 'pending',
+    }
   }
 
   useEffect(() => {
-    const onWindowPointerUp = (): void => {
-      const main = mainRef.current
-      const state = gestureRef.current
-      if (state?.mode === 'scroll' && main?.hasPointerCapture(state.pointerId)) {
-        main.releasePointerCapture(state.pointerId)
-      }
-      gestureRef.current = null
-      setIsScrollDragging(false)
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+  }, [])
+
+  useEffect(() => {
+    const main = mainRef.current
+    if (!main) {
+      return
     }
 
-    window.addEventListener('pointerup', onWindowPointerUp)
-    window.addEventListener('pointercancel', onWindowPointerUp)
-    return () => {
-      window.removeEventListener('pointerup', onWindowPointerUp)
-      window.removeEventListener('pointercancel', onWindowPointerUp)
+    const onWheel = (event: WheelEvent): void => {
+      const horizontalDelta = event.shiftKey ? event.deltaY : event.deltaX
+      if (Math.abs(horizontalDelta) < 1) {
+        return
+      }
+
+      if (Math.abs(horizontalDelta) >= Math.abs(event.deltaY) || event.shiftKey) {
+        event.preventDefault()
+        setScrollLeftRef.current(main.scrollLeft + horizontalDelta)
+      }
     }
+
+    main.addEventListener('wheel', onWheel, { passive: false })
+    return () => main.removeEventListener('wheel', onWheel)
   }, [])
 
   return (
@@ -212,18 +239,14 @@ export function CalendarScroll({ children }: CalendarScrollProps) {
         <div
           ref={topRef}
           onScroll={syncFromTop}
-          aria-hidden
           className="calendar-scroll-top mb-2 overflow-x-auto"
         >
-          <div style={{ width: contentWidth, height: 1 }} />
+          <div className="calendar-scroll-top-track" style={{ width: contentWidth }} />
         </div>
         <div
           ref={mainRef}
           onScroll={syncFromMain}
           onPointerDownCapture={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
           className={`calendar-scroll-main overflow-x-auto pb-4 ${
             isScrollDragging ? 'calendar-scroll-dragging' : ''
           }`}

@@ -12,25 +12,61 @@ html.theme-switching * {
 }
 
 .calendar-scroll-wrap,
-.calendar-scroll-main,
-.calendar-scroll-content {
+.calendar-scroll-wrap * {
   -webkit-user-select: none;
+  -ms-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
 }
 
 .calendar-scroll-main {
-  touch-action: pan-y;
   overscroll-behavior-x: contain;
-  scrollbar-width: none;
 }
 
-.calendar-scroll-main::-webkit-scrollbar {
-  display: none;
+.calendar-scroll-handle {
+  cursor: grab;
+}
+
+.calendar-scroll-main.calendar-scroll-dragging .calendar-scroll-handle {
+  cursor: grabbing;
+}
+
+@media (pointer: coarse) {
+  .calendar-scroll-main {
+    touch-action: pan-y;
+    scrollbar-width: none;
+  }
+
+  .calendar-scroll-main::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (pointer: fine) {
+  .calendar-scroll-main {
+    touch-action: pan-x pan-y;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(148 163 184) rgb(226 232 240);
+  }
+
+  .dark .calendar-scroll-main {
+    scrollbar-color: rgb(100 116 139) rgb(30 41 59);
+  }
+
+  .calendar-scroll-main::-webkit-scrollbar {
+    height: 12px;
+  }
+
+  .calendar-scroll-main::-webkit-scrollbar-track {
+    @apply rounded-full bg-slate-200 dark:bg-slate-800;
+  }
+
+  .calendar-scroll-main::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-400 hover:bg-slate-500 dark:bg-slate-500 dark:hover:bg-slate-400;
+  }
 }
 
 .calendar-scroll-top {
-  height: 14px;
   touch-action: pan-x;
   scrollbar-width: thin;
   scrollbar-color: rgb(148 163 184) rgb(226 232 240);
@@ -38,6 +74,24 @@ html.theme-switching * {
 
 .dark .calendar-scroll-top {
   scrollbar-color: rgb(100 116 139) rgb(30 41 59);
+}
+
+.calendar-scroll-top {
+  height: 18px;
+}
+
+.calendar-scroll-top-track {
+  height: 1px;
+}
+
+@media (pointer: fine) {
+  .calendar-scroll-top {
+    height: 22px;
+  }
+
+  .calendar-scroll-top::-webkit-scrollbar {
+    height: 14px;
+  }
 }
 
 .calendar-scroll-top::-webkit-scrollbar {
@@ -53,15 +107,7 @@ html.theme-switching * {
 }
 
 .calendar-scroll-main.calendar-scroll-dragging {
-  cursor: grabbing;
   touch-action: none;
-}
-
-.calendar-scroll-main.calendar-scroll-dragging,
-.calendar-scroll-main.calendar-scroll-dragging * {
-  -webkit-user-select: none !important;
-  user-select: none !important;
-  -webkit-touch-callout: none !important;
 }
 
 .calendar-scroll-main.calendar-scroll-dragging .calendar-scroll-content {
