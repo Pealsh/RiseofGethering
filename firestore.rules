@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{username} {
+      allow read: if true;
+      allow create: if !exists(/databases/$(database)/documents/users/$(username));
+      allow update, delete: if false;
+    }
+
+    match /schedules/{username}/dates/{date} {
+      allow read, write: if true;
+    }
+
+    // collectionGroup('dates') 用
+    match /{path=**}/dates/{date} {
+      allow read, write: if true;
+    }
+  }
+}
