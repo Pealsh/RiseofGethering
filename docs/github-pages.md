@@ -38,11 +38,22 @@ Actions タブでビルドが成功すれば公開完了です。
 
 ## 4. vite.config.ts について
 
-本番ビルド時のみ `base: '/RiseofGethering/'` が適用されます。ローカル開発（`npm run dev`）では `/` です。
+GitHub Actions ビルド時は **リポジトリ名から自動で base パスを設定** します。
 
-リポジトリ名を変える場合は `vite.config.ts` の `base` も変更してください。
+例: リポジトリ名が `RiseofGethering` なら  
+公開 URL は `https://<ユーザー名>.github.io/RiseofGethering/`
 
-## 5. ローカルで Pages 相当を確認
+**URL の大文字小文字はリポジトリ名と完全一致が必要です。**
+
+## 5. 404 / 画面が真っ黒になる場合
+
+1. 正しい URL で開く（末尾の `/` 付き）  
+   `https://<ユーザー名>.github.io/<リポジトリ名>/`
+2. ブラウザの開発者ツール（F12）→ Network で 404 のファイルを確認
+3. Actions の **Verify build output** ログで `index.html` のパスを確認
+4. リポジトリ名を変えたあと、**もう一度 push** して Actions を再実行
+
+## 6. ローカルで Pages 相当を確認
 
 ```bash
 npm run build
