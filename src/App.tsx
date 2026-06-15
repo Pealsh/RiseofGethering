@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase'
 import { AuthPage } from './components/AuthPage'
-import { CalendarScroll } from './components/CalendarScroll'
+import { CalendarPanBridge, CalendarScroll } from './components/CalendarScroll'
 import { useRollingToday } from './hooks/useRollingToday'
 
 const HOURS = Array.from({ length: 24 }, (_, index) => index)
@@ -81,6 +81,7 @@ function App() {
   )
   const dragState = useRef<DragState>({ active: false, value: 1, weeks: 1 })
   const paintPointer = useRef<PaintPointerState | null>(null)
+  const consumeCalendarPanRef = useRef<() => boolean>(() => false)
   const mySchedulesRef = useRef<TimetableByDate>({})
 
   const today = useRollingToday()
@@ -289,10 +290,6 @@ function App() {
       pointerType: event.pointerType,
       scrolling: false,
     }
-
-    if (event.pointerType === 'mouse') {
-      startDragPaint(dateKey, hour)
-    }
   }
 
   const onCellPointerMove = (
@@ -313,21 +310,41 @@ function App() {
     ) {
       state.scrolling = true
       stopDragPaint()
+
+      if (
+        event.pointerType === 'mouse' &&
+        Math.abs(deltaY) > Math.abs(deltaX) &&
+        !dragState.current.active
+      ) {
+        startDragPaint(dateKey, hour)
+      }
       return
     }
+  }
 
+  const onCellPointerEnter = (
+    event: React.PointerEvent<HTMLButtonElement>,
+    dateKey: string,
+    hour: number,
+  ): void => {
     if (event.pointerType === 'mouse' && dragState.current.active) {
       moveDragPaint(dateKey, hour)
     }
   }
 
   const onCellPointerUp = (
-    event: React.PointerEvent<HTMLButtonElement>,
+    _event: React.PointerEvent<HTMLButtonElement>,
     dateKey: string,
     hour: number,
   ): void => {
+    if (consumeCalendarPanRef.current()) {
+      paintPointer.current = null
+      stopDragPaint()
+      return
+    }
+
     const state = paintPointer.current
-    if (state && event.pointerType === 'touch' && !state.scrolling) {
+    if (state && !state.scrolling) {
       startDragPaint(dateKey, hour)
     }
     paintPointer.current = null
@@ -457,7 +474,7 @@ function App() {
 
         {activeTab === 'register' && (
           <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300">
-            PCはドラッグで連続選択。スマホはタップで参加/不参加を切り替え（横スクロールは上のバーまたはカード外側で操作）。
+            PCはドラッグで連続選択。スマホはタップで切り替え、押しながら横スワイプでカレンダーを移動。
           </div>
         )}
 
@@ -465,6 +482,7 @@ function App() {
 
         <section>
           <CalendarScroll>
+            <CalendarPanBridge bind={(consume) => { consumeCalendarPanRef.current = consume }} />
             {dateKeys.map((dateKey) => {
               const myTimetable = ensureTimetable(mySchedules[dateKey])
               const gatherCounts = allCounts[dateKey] ?? createEmptyTimetable()
@@ -473,7 +491,7 @@ function App() {
               return (
                 <article
                   key={dateKey}
-                  className="w-40 shrink-0 snap-start rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:w-44 dark:border-slate-700 dark:bg-slate-900"
+                  className="w-40 shrink-0 rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:w-44 dark:border-slate-700 dark:bg-slate-900"
                 >
                   <h2 className="mb-3 text-center text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {formatDisplayDate(dateKey)}
@@ -556,11 +574,7 @@ function App() {
                           disabled={!userId}
                           onPointerDown={(event) => onCellPointerDown(event, dateKey, hour)}
                           onPointerMove={(event) => onCellPointerMove(event, dateKey, hour)}
-                          onPointerEnter={(event) => {
-                            if (event.pointerType === 'mouse' && dragState.current.active) {
-                              moveDragPaint(dateKey, hour)
-                            }
-                          }}
+                          onPointerEnter={(event) => onCellPointerEnter(event, dateKey, hour)}
                           onPointerUp={(event) => onCellPointerUp(event, dateKey, hour)}
                           onPointerCancel={onCellPointerCancel}
                           className={`flex w-full select-none items-center justify-between rounded-md px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50 ${cellClassForRegister(

@@ -11,11 +11,18 @@ html.theme-switching * {
   transition: none !important;
 }
 
+.calendar-scroll-wrap,
+.calendar-scroll-main,
+.calendar-scroll-content {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .calendar-scroll-main {
-  scrollbar-width: none;
-  touch-action: pan-x pan-y;
-  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   overscroll-behavior-x: contain;
+  scrollbar-width: none;
 }
 
 .calendar-scroll-main::-webkit-scrollbar {
@@ -25,6 +32,12 @@ html.theme-switching * {
 .calendar-scroll-top {
   height: 14px;
   touch-action: pan-x;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184) rgb(226 232 240);
+}
+
+.dark .calendar-scroll-top {
+  scrollbar-color: rgb(100 116 139) rgb(30 41 59);
 }
 
 .calendar-scroll-top::-webkit-scrollbar {
@@ -36,16 +49,23 @@ html.theme-switching * {
 }
 
 .calendar-scroll-top::-webkit-scrollbar-thumb {
-  @apply rounded-full bg-slate-400 dark:bg-slate-500;
+  @apply rounded-full bg-slate-400 hover:bg-slate-500 dark:bg-slate-500 dark:hover:bg-slate-400;
 }
 
-.calendar-scroll-top {
-  scrollbar-width: thin;
-  scrollbar-color: rgb(148 163 184) rgb(226 232 240);
+.calendar-scroll-main.calendar-scroll-dragging {
+  cursor: grabbing;
+  touch-action: none;
 }
 
-.dark .calendar-scroll-top {
-  scrollbar-color: rgb(100 116 139) rgb(30 41 59);
+.calendar-scroll-main.calendar-scroll-dragging,
+.calendar-scroll-main.calendar-scroll-dragging * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+.calendar-scroll-main.calendar-scroll-dragging .calendar-scroll-content {
+  pointer-events: none;
 }
 
 body {
