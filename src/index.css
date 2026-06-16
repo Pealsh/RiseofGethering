@@ -21,6 +21,7 @@ html.theme-switching * {
 
 .calendar-scroll-main {
   overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .calendar-scroll-handle {
@@ -32,13 +33,56 @@ html.theme-switching * {
 }
 
 @media (pointer: coarse) {
+  .mobile-shell {
+    padding-top: max(1.5rem, env(safe-area-inset-top, 0px));
+  }
+
   .calendar-scroll-main {
-    touch-action: pan-y;
+    touch-action: auto;
     scrollbar-width: none;
+  }
+
+  .calendar-scroll-content > .calendar-day-card {
+    height: 100%;
+    max-height: 100%;
+    width: 11rem;
+  }
+
+  .calendar-scroll-two-day .calendar-scroll-main {
+    container-type: inline-size;
+  }
+
+  .calendar-scroll-two-day .calendar-scroll-content > .calendar-day-card {
+    width: calc((100cqw - 0.5rem) / 2);
+  }
+
+  .calendar-scroll-register .calendar-scroll-content > .calendar-day-card {
+    height: auto;
+    max-height: none;
   }
 
   .calendar-scroll-main::-webkit-scrollbar {
     display: none;
+  }
+
+  .calendar-scroll-top {
+    height: 28px;
+  }
+
+  .calendar-scroll-top::-webkit-scrollbar {
+    height: 12px;
+  }
+
+  .calendar-scroll-register .calendar-scroll-top {
+    height: 40px;
+  }
+
+  .calendar-scroll-register .calendar-scroll-top::-webkit-scrollbar {
+    height: 16px;
+  }
+
+  .calendar-scroll-register .calendar-scroll-main {
+    padding-bottom: 0.5rem;
   }
 }
 
@@ -112,6 +156,125 @@ html.theme-switching * {
 
 .calendar-scroll-main.calendar-scroll-dragging .calendar-scroll-content {
   pointer-events: none;
+}
+
+.gather-week-wrap,
+.gather-week-wrap * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.gather-week-pages {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  touch-action: pan-x;
+}
+
+.gather-week-nav-btn {
+  @apply rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+}
+
+.gather-legend-swatch {
+  display: inline-block;
+  height: 0.75rem;
+  width: 0.75rem;
+  border-radius: 0.125rem;
+}
+
+.gather-cell-low {
+  @apply bg-slate-200 dark:bg-slate-600;
+}
+
+.gather-cell-mid {
+  @apply bg-slate-400 dark:bg-slate-500;
+}
+
+.gather-cell-hot {
+  @apply bg-slate-800 dark:bg-yellow-400;
+}
+
+.gather-week-head,
+.gather-week-body {
+  grid-template-columns: 2.75rem repeat(7, minmax(0, 1fr));
+}
+
+.gather-week-body {
+  grid-template-rows: repeat(24, minmax(0, 1fr));
+}
+
+.gather-week-row > div:last-child {
+  border-right: none;
+}
+
+.gather-week-row > div > .gather-cell,
+.gather-week-row > div {
+  height: 100%;
+}
+
+.gather-week-row > div:not(:first-child) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (pointer: coarse) {
+  .gather-week-pages {
+    scrollbar-width: none;
+  }
+
+  .gather-week-pages::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (min-width: 640px) {
+  .gather-app-main > header {
+    margin-bottom: 0.75rem;
+  }
+
+  .gather-app-main > .gather-tabs {
+    margin-bottom: 0.5rem;
+  }
+}
+
+@media (pointer: fine) {
+  .gather-week-pages {
+    scroll-snap-type: none;
+    touch-action: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(148 163 184) rgb(226 232 240);
+  }
+
+  .dark .gather-week-pages {
+    scrollbar-color: rgb(100 116 139) rgb(30 41 59);
+  }
+
+  .gather-week-pages::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .gather-week-pages::-webkit-scrollbar-track {
+    @apply rounded-full bg-slate-200 dark:bg-slate-800;
+  }
+
+  .gather-week-pages::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-400 hover:bg-slate-500 dark:bg-slate-500 dark:hover:bg-slate-400;
+  }
+
+  .gather-week-head,
+  .gather-week-body {
+    grid-template-columns: 3.25rem repeat(7, minmax(0, 1fr));
+  }
+
+  .gather-week-table {
+    border-radius: 0.75rem;
+  }
+
+  .gather-week-row > div:not(:first-child):hover .gather-cell:not(.text-transparent) {
+    filter: brightness(1.08);
+  }
 }
 
 body {

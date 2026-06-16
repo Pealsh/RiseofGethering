@@ -40,6 +40,9 @@ export function CalendarPanBridge({
 
 interface CalendarScrollProps {
   children: ReactNode
+  className?: string
+  twoDayView?: boolean
+  registerMode?: boolean
 }
 
 type GestureMode = 'pending' | 'scroll' | 'cancelled'
@@ -59,7 +62,12 @@ const isScrollBlockedTarget = (target: EventTarget | null): boolean => {
   return !!target.closest('button, a, input, select, textarea, label')
 }
 
-export function CalendarScroll({ children }: CalendarScrollProps) {
+export function CalendarScroll({
+  children,
+  className,
+  twoDayView = false,
+  registerMode = false,
+}: CalendarScrollProps) {
   const topRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
@@ -187,7 +195,10 @@ export function CalendarScroll({ children }: CalendarScrollProps) {
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     const main = mainRef.current
-    if (!main || event.button > 0 || isScrollBlockedTarget(event.target)) {
+    if (!main || event.button > 0 || event.pointerType === 'touch') {
+      return
+    }
+    if (isScrollBlockedTarget(event.target)) {
       return
     }
 
@@ -233,13 +244,22 @@ export function CalendarScroll({ children }: CalendarScrollProps) {
     return () => main.removeEventListener('wheel', onWheel)
   }, [])
 
+  const wrapClassName = [
+    'calendar-scroll-wrap flex min-h-0 flex-col',
+    twoDayView ? 'calendar-scroll-two-day' : '',
+    registerMode ? 'calendar-scroll-register' : '',
+    className ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
     <CalendarPanContext.Provider value={{ isScrollDragging, consumeScrollGesture }}>
-      <div className="calendar-scroll-wrap">
+      <div className={wrapClassName}>
         <div
           ref={topRef}
           onScroll={syncFromTop}
-          className="calendar-scroll-top mb-2 overflow-x-auto"
+          className="calendar-scroll-top mb-2 mt-1 shrink-0 overflow-x-auto sm:mb-2 sm:mt-0"
         >
           <div className="calendar-scroll-top-track" style={{ width: contentWidth }} />
         </div>
@@ -247,11 +267,16 @@ export function CalendarScroll({ children }: CalendarScrollProps) {
           ref={mainRef}
           onScroll={syncFromMain}
           onPointerDownCapture={onPointerDown}
-          className={`calendar-scroll-main overflow-x-auto pb-4 ${
-            isScrollDragging ? 'calendar-scroll-dragging' : ''
-          }`}
+          className={`calendar-scroll-main overflow-x-auto pb-2 sm:pb-4 ${
+            registerMode ? '' : 'min-h-0 flex-1'
+          } sm:flex-none ${isScrollDragging ? 'calendar-scroll-dragging' : ''}`}
         >
-          <div ref={innerRef} className="calendar-scroll-content flex min-w-max gap-2.5">
+          <div
+            ref={innerRef}
+            className={`calendar-scroll-content flex min-w-max items-stretch gap-2 sm:gap-2.5 ${
+              registerMode ? '' : 'h-full'
+            }`}
+          >
             {children}
           </div>
         </div>
