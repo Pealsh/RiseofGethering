@@ -61,7 +61,7 @@ export function MobileFooter({
         <button
           type="button"
           onClick={onLogout}
-          className="absolute left-0 max-w-[5.5rem] truncate rounded-[20px] border border-slate-200 bg-white/95 px-3 py-2 text-[11px] font-medium text-slate-600 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-300"
+          className="mobile-footer-side-btn absolute left-0 truncate rounded-[20px] border border-slate-200 bg-white/95 text-[11px] font-medium text-slate-600 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-300"
           title={`${userId}（タップでログアウト）`}
         >
           {userId}
@@ -105,7 +105,7 @@ export function MobileFooter({
           type="button"
           onClick={toggleTheme}
           aria-label={theme === 'dark' ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
-          className="absolute right-0 rounded-[20px] border border-slate-200 bg-white/95 px-4 py-2 text-sm font-medium text-slate-700 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-100"
+          className="mobile-footer-side-btn absolute right-0 rounded-[20px] border border-slate-200 bg-white/95 text-[11px] font-medium text-slate-700 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-100"
         >
           {theme === 'dark' ? 'ライト' : 'ダーク'}
         </button>

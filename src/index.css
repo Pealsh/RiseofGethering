@@ -230,6 +230,15 @@ html.theme-switching * {
   will-change: transform;
 }
 
+.mobile-footer-side-btn {
+  display: flex;
+  height: 2.25rem;
+  width: 4.5rem;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 0.5rem;
+}
+
 .calendar-scroll-main-fit {
   min-height: 0;
   flex: 1;
