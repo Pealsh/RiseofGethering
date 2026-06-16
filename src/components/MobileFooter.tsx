@@ -1,4 +1,6 @@
+import { type TouchEvent } from 'react'
 import { useTheme } from '../hooks/useTheme'
+import { useMobileTabSwipe } from './useMobileTabSwipe'
 
 type TabType = 'gather' | 'register'
 
@@ -18,11 +20,34 @@ export function MobileFooter({
   onResetAll,
 }: MobileFooterProps) {
   const { theme, toggleTheme } = useTheme()
+  const tabSwipe = useMobileTabSwipe(activeTab, onTabChange)
+
+  const handleFooterTouchStart = (event: TouchEvent<HTMLElement>): void => {
+    tabSwipe.onTouchStart(event)
+  }
+
+  const handleFooterTouchMove = (event: TouchEvent<HTMLElement>): void => {
+    tabSwipe.onTouchMove(event)
+  }
+
+  const handleFooterTouchEnd = (): void => {
+    tabSwipe.onTouchEnd()
+  }
+
+  const handleFooterTouchCancel = (): void => {
+    tabSwipe.onTouchCancel()
+  }
 
   return (
-    <footer className="fixed inset-x-0 bottom-4 z-50 px-3 sm:hidden">
+    <footer
+      className="mobile-footer fixed inset-x-0 bottom-4 z-50 px-3 sm:hidden"
+      onTouchStart={handleFooterTouchStart}
+      onTouchMove={handleFooterTouchMove}
+      onTouchEnd={handleFooterTouchEnd}
+      onTouchCancel={handleFooterTouchCancel}
+    >
       {activeTab === 'register' && onResetAll && (
-        <div className="mb-2 flex justify-center pt-2">
+        <div className="mb-2 flex justify-center pt-1">
           <button
             type="button"
             onClick={onResetAll}
@@ -44,14 +69,20 @@ export function MobileFooter({
 
         <nav
           aria-label="メインタブ"
-          className="mx-auto inline-flex gap-1 rounded-[20px] border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95"
+          className="mobile-tab-nav relative mx-auto grid w-[11.5rem] grid-cols-2 gap-1 rounded-[20px] border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95"
         >
+          <span
+            aria-hidden
+            className={`mobile-tab-pill absolute inset-y-1 w-[calc(50%-0.25rem)] rounded-2xl bg-slate-900 transition-transform duration-300 ease-out dark:bg-white ${
+              activeTab === 'gather' ? 'translate-x-1' : 'translate-x-[calc(100%+0.25rem)]'
+            }`}
+          />
           <button
             type="button"
             onClick={() => onTabChange('gather')}
-            className={`rounded-2xl px-5 py-2 text-sm font-medium ${
+            className={`relative z-10 rounded-2xl px-4 py-2 text-sm font-medium transition-colors duration-300 ${
               activeTab === 'gather'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                ? 'text-white dark:text-slate-900'
                 : 'text-slate-600 dark:text-slate-400'
             }`}
           >
@@ -60,9 +91,9 @@ export function MobileFooter({
           <button
             type="button"
             onClick={() => onTabChange('register')}
-            className={`rounded-2xl px-5 py-2 text-sm font-medium ${
+            className={`relative z-10 rounded-2xl px-4 py-2 text-sm font-medium transition-colors duration-300 ${
               activeTab === 'register'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                ? 'text-white dark:text-slate-900'
                 : 'text-slate-600 dark:text-slate-400'
             }`}
           >

@@ -12,6 +12,7 @@ import { AuthPage } from './components/AuthPage'
 import { CalendarPanBridge, CalendarScroll } from './components/CalendarScroll'
 import { GatherWeekView } from './components/GatherWeekView'
 import { MobileFooter } from './components/MobileFooter'
+import { MobileTabShell } from './components/MobileTabShell'
 import { useRollingToday } from './hooks/useRollingToday'
 
 const HOURS = Array.from({ length: 24 }, (_, index) => index)
@@ -400,20 +401,111 @@ function App() {
       : 'bg-white text-slate-400 border border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700'
   }
 
+  const registerScroll = (
+    <CalendarScroll className="min-h-0 flex-1" twoDayView registerMode fitViewport pairSnap>
+      <CalendarPanBridge bind={(consume) => { consumeCalendarPanRef.current = consume }} />
+      {dateKeys.map((dateKey) => {
+        const myTimetable = ensureTimetable(mySchedules[dateKey])
+        const weekSpan = getWeekSpan(dateKey)
+
+        return (
+          <article
+            key={dateKey}
+            className="calendar-day-card register-day-card flex min-h-0 shrink-0 flex-col rounded-lg border border-slate-200 bg-white p-1.5 shadow-sm sm:w-40 sm:p-2 dark:border-slate-700 dark:bg-slate-900"
+          >
+            <h2 className="calendar-scroll-handle mb-0.5 shrink-0 text-center text-[11px] font-semibold text-slate-900 sm:mb-1 sm:text-xs dark:text-slate-100">
+              {formatDisplayDate(dateKey)}
+            </h2>
+
+            <div className="register-day-controls mb-1 shrink-0 space-y-1 sm:mb-1 sm:space-y-1">
+              <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] sm:px-2 sm:py-1.5 sm:text-xs dark:border-slate-700 dark:bg-slate-800">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setWeekSpans((prev) => ({
+                      ...prev,
+                      [dateKey]: Math.max(1, (prev[dateKey] ?? 1) - 1),
+                    }))
+                  }
+                  className="flex h-5 w-5 items-center justify-center rounded bg-white text-xs font-medium text-slate-600 hover:bg-slate-100 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                >
+                  -
+                </button>
+                <span className="text-slate-700 dark:text-slate-300">{weekSpan}週</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setWeekSpans((prev) => ({
+                      ...prev,
+                      [dateKey]: Math.min(4, (prev[dateKey] ?? 1) + 1),
+                    }))
+                  }
+                  className="flex h-5 w-5 items-center justify-center rounded bg-white text-xs font-medium text-slate-600 hover:bg-slate-100 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                >
+                  +
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1 text-[10px] sm:gap-1 sm:text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => continueSchedule(dateKey, 7)}
+                  className="rounded-md border border-slate-200 bg-white px-1 py-1 font-medium text-slate-700 hover:bg-slate-50 sm:px-1 sm:py-0.5 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  1週間
+                </button>
+                <button
+                  type="button"
+                  onClick={() => continueSchedule(dateKey, 28)}
+                  className="rounded-md border border-slate-200 bg-white px-1 py-1 font-medium text-slate-700 hover:bg-slate-50 sm:px-1 sm:py-0.5 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  1ヶ月
+                </button>
+              </div>
+            </div>
+
+            <div className="calendar-day-hours grid min-h-0 flex-1 grid-cols-2 gap-0.5 sm:block sm:flex-none sm:grid-cols-1 sm:gap-0 sm:space-y-0.5">
+              {HOURS.map((hour) => {
+                const myValue = myTimetable[hour]
+
+                return (
+                  <button
+                    key={`${dateKey}-${hour}`}
+                    type="button"
+                    disabled={!userId}
+                    onPointerDown={(event) => onCellPointerDown(event, dateKey, hour)}
+                    onPointerMove={(event) => onCellPointerMove(event, dateKey, hour)}
+                    onPointerEnter={(event) => onCellPointerEnter(event, dateKey, hour)}
+                    onPointerUp={(event) => onCellPointerUp(event, dateKey, hour)}
+                    onPointerCancel={onCellPointerCancel}
+                    className={`flex w-full min-h-0 select-none items-center justify-between rounded-md px-1.5 py-1 text-[10px] sm:min-h-0 sm:px-2 sm:py-1.5 sm:text-xs disabled:cursor-not-allowed disabled:opacity-50 ${cellClassForRegister(
+                      myValue,
+                    )}`}
+                  >
+                    <span className="font-mono">{hour}:00</span>
+                    <span className="text-[10px] sm:text-[10px]">{myValue === 1 ? '○' : '-'}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </article>
+        )
+      })}
+    </CalendarScroll>
+  )
+
   return (
     <div
       className={`mobile-shell flex flex-col bg-slate-50 px-3 dark:bg-slate-950 ${
-        activeTab === 'gather'
-          ? 'h-dvh overflow-hidden pb-20 sm:p-6 sm:pb-6'
-          : 'min-h-dvh overflow-x-hidden overflow-y-auto pb-32 sm:min-h-screen sm:h-auto sm:overflow-visible sm:p-6 sm:pb-20'
-      }`}
+        activeTab === 'register' ? 'register-mobile pb-28' : 'pb-20'
+      } h-dvh overflow-hidden sm:p-6 sm:pb-6`}
     >
       <div
         className={`mx-auto flex w-full max-w-7xl min-h-0 flex-1 flex-col ${
-          activeTab === 'gather' ? 'gather-app-main' : ''
+          activeTab === 'gather' ? 'gather-app-main' : activeTab === 'register' ? 'register-app-main' : ''
         }`}
       >
-        <h1 className="shrink-0 pb-1 text-center text-lg font-bold tracking-wide text-slate-900 sm:hidden dark:text-white">
+        <h1 className="shrink-0 text-center text-base font-bold tracking-wide text-slate-900 sm:hidden dark:text-white">
           万国覚醒
         </h1>
 
@@ -475,121 +567,24 @@ function App() {
           )}
         </div>
 
-        {activeTab === 'register' && (
-          <div className="mb-4 hidden shrink-0 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 sm:block dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300">
-            PCはドラッグで連続選択。スマホはタップで切り替え。日付表示などボタン以外を押しながら横スワイプでカレンダーを移動。
-          </div>
-        )}
+        <p className="mb-4 hidden shrink-0 text-xs text-slate-500 sm:block dark:text-slate-400">{syncStatus}</p>
 
-        {activeTab !== 'gather' && (
-          <p className="mb-4 hidden shrink-0 text-xs text-slate-500 sm:block dark:text-slate-400">{syncStatus}</p>
-        )}
+        <MobileTabShell
+          activeTab={activeTab}
+          gather={
+            <>
+              <p className="mb-1 shrink-0 text-[10px] text-slate-400 dark:text-slate-500">{syncStatus}</p>
+              <GatherWeekView className="min-h-0 flex-1" dateKeys={dateKeys} allCounts={allCounts} />
+            </>
+          }
+          register={registerScroll}
+        />
 
-        <section className={`flex flex-col ${activeTab === 'gather' ? 'min-h-0 flex-1' : ''}`}>
+        <section className="hidden min-h-0 flex-1 flex-col sm:flex">
           {activeTab === 'gather' ? (
-            <GatherWeekView
-              className="min-h-0 flex-1"
-              dateKeys={dateKeys}
-              allCounts={allCounts}
-            />
+            <GatherWeekView className="min-h-0 flex-1" dateKeys={dateKeys} allCounts={allCounts} />
           ) : (
-            <CalendarScroll className="sm:flex-none" twoDayView registerMode>
-              <CalendarPanBridge bind={(consume) => { consumeCalendarPanRef.current = consume }} />
-              {dateKeys.map((dateKey) => {
-                const myTimetable = ensureTimetable(mySchedules[dateKey])
-                const weekSpan = getWeekSpan(dateKey)
-
-                return (
-                  <article
-                    key={dateKey}
-                    className="calendar-day-card flex shrink-0 flex-col rounded-lg border border-slate-200 bg-white p-2 shadow-sm sm:w-44 sm:p-3 dark:border-slate-700 dark:bg-slate-900"
-                  >
-                    <h2 className="calendar-scroll-handle mb-1 shrink-0 text-center text-xs font-semibold text-slate-900 sm:mb-3 sm:text-sm dark:text-slate-100">
-                      {formatDisplayDate(dateKey)}
-                    </h2>
-                    <div className="calendar-scroll-handle mb-1 shrink-0 rounded bg-slate-100 py-1 text-center text-[9px] text-slate-400 sm:hidden dark:bg-slate-800 dark:text-slate-500">
-                      ‹ 横にスワイプ ›
-                    </div>
-
-                    <div className="mb-2 shrink-0 space-y-1.5 sm:mb-3 sm:space-y-2">
-                      <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-800">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setWeekSpans((prev) => ({
-                              ...prev,
-                              [dateKey]: Math.max(1, (prev[dateKey] ?? 1) - 1),
-                            }))
-                          }
-                          className="flex h-5 w-5 items-center justify-center rounded bg-white text-xs font-medium text-slate-600 hover:bg-slate-100 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
-                        >
-                          -
-                        </button>
-                        <span className="text-slate-700 dark:text-slate-300">{weekSpan}週</span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setWeekSpans((prev) => ({
-                              ...prev,
-                              [dateKey]: Math.min(4, (prev[dateKey] ?? 1) + 1),
-                            }))
-                          }
-                          className="flex h-5 w-5 items-center justify-center rounded bg-white text-xs font-medium text-slate-600 hover:bg-slate-100 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
-                        >
-                          +
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                        <button
-                          type="button"
-                          onClick={() => continueSchedule(dateKey, 7)}
-                          className="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                        >
-                          1週間
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => continueSchedule(dateKey, 28)}
-                          className="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                        >
-                          1ヶ月
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="calendar-day-hours grid grid-cols-2 gap-1 sm:block sm:space-y-0.5">
-                      {HOURS.map((hour) => {
-                        const myValue = myTimetable[hour]
-
-                        return (
-                          <button
-                            key={`${dateKey}-${hour}`}
-                            type="button"
-                            disabled={!userId}
-                            onPointerDown={(event) => onCellPointerDown(event, dateKey, hour)}
-                            onPointerMove={(event) => onCellPointerMove(event, dateKey, hour)}
-                            onPointerEnter={(event) => onCellPointerEnter(event, dateKey, hour)}
-                            onPointerUp={(event) => onCellPointerUp(event, dateKey, hour)}
-                            onPointerCancel={onCellPointerCancel}
-                            className={`flex w-full min-h-[2rem] select-none items-center justify-between rounded-md px-2 py-1.5 text-xs sm:min-h-0 sm:px-2 sm:py-1.5 disabled:cursor-not-allowed disabled:opacity-50 ${cellClassForRegister(
-                              myValue,
-                            )}`}
-                          >
-                            <span className="font-mono">{hour}:00</span>
-                            <span className="text-xs sm:text-[10px]">{myValue === 1 ? '○' : '-'}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-
-                    <div className="calendar-scroll-handle mt-1 shrink-0 rounded bg-slate-100 py-2.5 text-center text-[9px] text-slate-400 sm:hidden dark:bg-slate-800 dark:text-slate-500">
-                      ‹ 横にスワイプ ›
-                    </div>
-                  </article>
-                )
-              })}
-            </CalendarScroll>
+            registerScroll
           )}
         </section>
       </div>

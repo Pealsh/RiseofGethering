@@ -1,12 +1,16 @@
 import {
+  Children,
   createContext,
+  isValidElement,
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 
 const GESTURE_THRESHOLD = 8
 
@@ -43,6 +47,8 @@ interface CalendarScrollProps {
   className?: string
   twoDayView?: boolean
   registerMode?: boolean
+  fitViewport?: boolean
+  pairSnap?: boolean
 }
 
 type GestureMode = 'pending' | 'scroll' | 'cancelled'
@@ -67,7 +73,10 @@ export function CalendarScroll({
   className,
   twoDayView = false,
   registerMode = false,
+  fitViewport = false,
+  pairSnap = false,
 }: CalendarScrollProps) {
+  const isMobilePairSnap = useMediaQuery('(max-width: 639px)') && pairSnap
   const topRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
@@ -77,6 +86,22 @@ export function CalendarScroll({
   const setScrollLeftRef = useRef<(scrollLeft: number) => void>(() => {})
   const [contentWidth, setContentWidth] = useState(0)
   const [isScrollDragging, setIsScrollDragging] = useState(false)
+
+  const { panBridge, dayCards } = useMemo(() => {
+    const items = Children.toArray(children)
+    return {
+      panBridge: items.find((child) => isValidElement(child) && child.type === CalendarPanBridge),
+      dayCards: items.filter((child) => !isValidElement(child) || child.type !== CalendarPanBridge),
+    }
+  }, [children])
+
+  const childPairs = useMemo(() => {
+    const pairs: ReactNode[][] = []
+    for (let index = 0; index < dayCards.length; index += 2) {
+      pairs.push(dayCards.slice(index, index + 2))
+    }
+    return pairs
+  }, [dayCards])
 
   const consumeScrollGesture = useCallback((): boolean => {
     if (!scrollGestureRef.current) {
@@ -110,6 +135,7 @@ export function CalendarScroll({
 
   useEffect(() => {
     const inner = innerRef.current
+    const main = mainRef.current
     if (!inner) {
       return
     }
@@ -121,8 +147,11 @@ export function CalendarScroll({
     updateWidth()
     const observer = new ResizeObserver(updateWidth)
     observer.observe(inner)
+    if (main && isMobilePairSnap) {
+      observer.observe(main)
+    }
     return () => observer.disconnect()
-  }, [children])
+  }, [children, childPairs, isMobilePairSnap])
 
   const syncFromTop = (): void => {
     if (syncingRef.current || !topRef.current || !mainRef.current) {
@@ -248,36 +277,63 @@ export function CalendarScroll({
     'calendar-scroll-wrap flex min-h-0 flex-col',
     twoDayView ? 'calendar-scroll-two-day' : '',
     registerMode ? 'calendar-scroll-register' : '',
+    fitViewport ? 'calendar-scroll-fit' : '',
+    isMobilePairSnap ? 'calendar-scroll-pair-snap' : '',
     className ?? '',
   ]
     .filter(Boolean)
     .join(' ')
 
+  const mainFillsViewport = !registerMode || fitViewport || isMobilePairSnap
+  const mainFitClass =
+    fitViewport || isMobilePairSnap
+      ? 'calendar-scroll-main-fit'
+      : mainFillsViewport
+        ? 'min-h-0 flex-1'
+        : ''
+
+  const hideTopBar = isMobilePairSnap
+
+  const scrollContent = isMobilePairSnap ? (
+    <>
+      {childPairs.map((pair, pairIndex) => (
+        <div key={`pair-${pairIndex}`} className="register-pair-page h-full shrink-0 snap-start snap-always">
+          {pair}
+        </div>
+      ))}
+    </>
+  ) : (
+    dayCards
+  )
+
   return (
     <CalendarPanContext.Provider value={{ isScrollDragging, consumeScrollGesture }}>
+      {panBridge}
       <div className={wrapClassName}>
-        <div
-          ref={topRef}
-          onScroll={syncFromTop}
-          className="calendar-scroll-top mb-2 mt-1 shrink-0 overflow-x-auto sm:mb-2 sm:mt-0"
-        >
-          <div className="calendar-scroll-top-track" style={{ width: contentWidth }} />
-        </div>
+        {!hideTopBar && (
+          <div
+            ref={topRef}
+            onScroll={syncFromTop}
+            className="calendar-scroll-top mb-2 mt-1 shrink-0 overflow-x-auto sm:mb-2 sm:mt-0"
+          >
+            <div className="calendar-scroll-top-track" style={{ width: contentWidth }} />
+          </div>
+        )}
         <div
           ref={mainRef}
           onScroll={syncFromMain}
           onPointerDownCapture={onPointerDown}
-          className={`calendar-scroll-main overflow-x-auto pb-2 sm:pb-4 ${
-            registerMode ? '' : 'min-h-0 flex-1'
-          } sm:flex-none ${isScrollDragging ? 'calendar-scroll-dragging' : ''}`}
+          className={`calendar-scroll-main overflow-x-auto pb-2 sm:pb-2 ${mainFitClass} ${
+            isScrollDragging ? 'calendar-scroll-dragging' : ''
+          }`}
         >
           <div
             ref={innerRef}
-            className={`calendar-scroll-content flex min-w-max items-stretch gap-2 sm:gap-2.5 ${
-              registerMode ? '' : 'h-full'
+            className={`calendar-scroll-content flex min-w-max items-stretch gap-2 sm:gap-2 ${
+              fitViewport || isMobilePairSnap ? 'calendar-scroll-content-fit' : mainFillsViewport ? 'h-full' : ''
             }`}
           >
-            {children}
+            {scrollContent}
           </div>
         </div>
       </div>
