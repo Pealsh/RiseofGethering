@@ -9,23 +9,43 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase'
 import { AuthPage } from './components/AuthPage'
-import { CalendarPanBridge, CalendarScroll } from './components/CalendarScroll'
 import { GatherWeekView } from './components/GatherWeekView'
 import { MobileFooter } from './components/MobileFooter'
 import { MobileTabShell } from './components/MobileTabShell'
+import { PresetEditorView } from './components/register/PresetEditorView'
+import { RegisterDayView } from './components/register/RegisterDayView'
+import { RegisterSubNav, type RegisterMode } from './components/register/RegisterSubNav'
+import { RegisterWeekView } from './components/register/RegisterWeekView'
+import { usePresets } from './hooks/usePresets'
 import { useRollingToday } from './hooks/useRollingToday'
+import { useWeekPlan } from './hooks/useWeekPlan'
+import {
+  DAYS_TO_SHOW,
+  addDays,
+  buildMonthBlocks,
+  collectWeeksFrom,
+  compareWeekKeys,
+  createEmptyTimetable,
+  ensureTimetable,
+  formatDisplayDate,
+  toDateKey,
+  type Timetable,
+  type TimetableByDate,
+  type WeekPlanState,
+} from './lib/scheduleUtils'
 
-const HOURS = Array.from({ length: 24 }, (_, index) => index)
-const DAYS_TO_SHOW = 90
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
+const EMPTY_WEEK_PLAN: WeekPlanState = {
+  assignments: {},
+  continueEnabled: false,
+  continuePresetId: null,
+  continueAnchorWeekKey: null,
+}
 
 type TabType = 'register' | 'gather'
-type Timetable = number[]
-type TimetableByDate = Record<string, Timetable>
+
 type DragState = {
   active: boolean
   value: 0 | 1
-  weeks: number
 }
 
 type PaintPointerState = {
@@ -38,56 +58,28 @@ type PaintPointerState = {
 }
 
 const PAINT_MOVE_THRESHOLD = 10
-
 const SESSION_USER_KEY = 'raik-session-user'
-
-const createEmptyTimetable = (): Timetable => Array.from({ length: 24 }, () => 0)
-
-const toDateKey = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-const addDays = (dateKey: string, days: number): string => {
-  const next = new Date(`${dateKey}T00:00:00`)
-  next.setDate(next.getDate() + days)
-  return toDateKey(next)
-}
-
-const formatDisplayDate = (dateKey: string): string => {
-  const date = new Date(`${dateKey}T00:00:00`)
-  return `${date.getMonth() + 1}/${date.getDate()} (${WEEKDAYS[date.getDay()]})`
-}
-
-const getSavedSessionUser = (): string => {
-  const saved = localStorage.getItem(SESSION_USER_KEY)
-  return saved ?? ''
-}
-
-const ensureTimetable = (source?: Timetable): Timetable => {
-  if (!source || source.length !== 24) {
-    return createEmptyTimetable()
-  }
-  return [...source]
-}
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('gather')
-  const [userId, setUserId] = useState<string>(() => getSavedSessionUser())
+  const [registerMode, setRegisterMode] = useState<RegisterMode>('day')
+  const [userId, setUserId] = useState<string>(() => localStorage.getItem(SESSION_USER_KEY) ?? '')
   const [mySchedules, setMySchedules] = useState<TimetableByDate>({})
   const [allCounts, setAllCounts] = useState<Record<string, number[]>>({})
-  const [weekSpans, setWeekSpans] = useState<Record<string, number>>({})
+  const [weekExtendCounts, setWeekExtendCounts] = useState<Record<string, number>>({})
   const [syncStatus, setSyncStatus] = useState<string>(
     db ? 'Firebase同期中' : 'Firebase未設定: ローカル表示のみ',
   )
-  const dragState = useRef<DragState>({ active: false, value: 1, weeks: 1 })
+
+  const dragState = useRef<DragState>({ active: false, value: 1 })
   const paintPointer = useRef<PaintPointerState | null>(null)
   const consumeCalendarPanRef = useRef<() => boolean>(() => false)
   const mySchedulesRef = useRef<TimetableByDate>({})
+  const weekPlanRef = useRef<WeekPlanState>(EMPTY_WEEK_PLAN)
 
   const today = useRollingToday()
+  const { presets, updatePreset, togglePresetHour, addPreset, deletePreset } = usePresets(userId)
+  const { weekPlan, persistWeekPlan } = useWeekPlan(userId)
 
   const dateKeys = useMemo(() => {
     return Array.from({ length: DAYS_TO_SHOW }, (_, index) =>
@@ -97,21 +89,22 @@ function App() {
 
   const firstDate = dateKeys[0]
   const lastDate = dateKeys[dateKeys.length - 1]
+  const monthBlocks = useMemo(() => buildMonthBlocks(dateKeys), [dateKeys])
 
   useEffect(() => {
     mySchedulesRef.current = mySchedules
   }, [mySchedules])
 
   useEffect(() => {
-    if (!db) {
-      return
-    }
-    if (!userId) {
+    weekPlanRef.current = weekPlan
+  }, [weekPlan])
+
+  useEffect(() => {
+    if (!db || !userId) {
       return
     }
 
     const scheduleRef = collection(db, 'schedules', userId, 'dates')
-
     const unsubscribe = onSnapshot(
       scheduleRef,
       (snapshot) => {
@@ -141,7 +134,6 @@ function App() {
     }
 
     const groupRef = collectionGroup(db, 'dates')
-
     const unsubscribe = onSnapshot(
       groupRef,
       (snapshot) => {
@@ -172,7 +164,7 @@ function App() {
     )
 
     return () => unsubscribe()
-  }, [firstDate, lastDate, userId])
+  }, [firstDate, lastDate])
 
   useEffect(() => {
     const onPointerUp = () => {
@@ -210,11 +202,7 @@ function App() {
       } else {
         const batch = writeBatch(firestore)
         entries.forEach(([date, timetable]) => {
-          batch.set(
-            doc(firestore, 'schedules', userId, 'dates', date),
-            { userId, date, timetable },
-            { merge: true },
-          )
+          batch.set(doc(firestore, 'schedules', userId, 'dates', date), { userId, date, timetable }, { merge: true })
         })
         await batch.commit()
       }
@@ -236,44 +224,152 @@ function App() {
     void persistTimetables(updates)
   }
 
-  const getWeekSpan = (dateKey: string): number => {
-    return weekSpans[dateKey] ?? 1
+  const getWeekExtendCount = (dateKey: string): number => weekExtendCounts[dateKey] ?? 0
+
+  const canExtendWeek = (dateKey: string): boolean => {
+    const nextOffset = getWeekExtendCount(dateKey) + 1
+    return addDays(dateKey, 7 * nextOffset) <= lastDate
   }
 
-  const paintHour = (dateKey: string, hour: number, value: 0 | 1, weeks: number): void => {
-    const updates: TimetableByDate = {}
-    for (let index = 0; index < weeks; index += 1) {
-      const targetDate = addDays(dateKey, index * 7)
-      const timetable = ensureTimetable(mySchedulesRef.current[targetDate])
-      timetable[hour] = value
-      updates[targetDate] = timetable
-    }
-    applyUpdates(updates)
-  }
-
-  const continueSchedule = (dateKey: string, totalDays: number): void => {
+  const extendScheduleByOneWeek = (dateKey: string): void => {
     const source = ensureTimetable(mySchedulesRef.current[dateKey])
-    const updates: TimetableByDate = {}
-    for (let index = 0; index < totalDays; index += 1) {
-      const targetDate = addDays(dateKey, index)
-      updates[targetDate] = [...source]
+    const nextOffset = getWeekExtendCount(dateKey) + 1
+    const targetDate = addDays(dateKey, 7 * nextOffset)
+    if (targetDate > lastDate) {
+      return
     }
+    applyUpdates({ [targetDate]: [...source] })
+    setWeekExtendCounts((prev) => ({ ...prev, [dateKey]: nextOffset }))
+  }
+
+  const shrinkWeekExtend = (dateKey: string): void => {
+    const current = getWeekExtendCount(dateKey)
+    if (current <= 0) {
+      return
+    }
+    setWeekExtendCounts((prev) => ({ ...prev, [dateKey]: current - 1 }))
+  }
+
+  const paintHour = (dateKey: string, hour: number, value: 0 | 1): void => {
+    const timetable = ensureTimetable(mySchedulesRef.current[dateKey])
+    timetable[hour] = value
+    applyUpdates({ [dateKey]: timetable })
+  }
+
+  const assignPresetToWeek = (weekKey: string, presetId: string): void => {
+    const preset = presets.find((item) => item.id === presetId)
+    if (!preset) {
+      return
+    }
+
+    const plan = weekPlanRef.current
+    const shouldContinue = plan.continueEnabled
+    const targetWeeks = shouldContinue
+      ? collectWeeksFrom(monthBlocks, weekKey)
+      : monthBlocks.flatMap((block) => block.weeks).filter((week) => week.weekKey === weekKey)
+
+    const updates: TimetableByDate = {}
+    const assignments = { ...plan.assignments }
+    targetWeeks.forEach((week) => {
+      week.dateKeys.forEach((dateKey) => {
+        const dayIndex = new Date(`${dateKey}T00:00:00`).getDay()
+        updates[dateKey] = [...preset.weekTimetable[dayIndex]]
+      })
+      assignments[week.weekKey] = presetId
+    })
+
     applyUpdates(updates)
+    persistWeekPlan({
+      ...plan,
+      assignments,
+      continuePresetId: shouldContinue ? presetId : plan.continuePresetId,
+      continueAnchorWeekKey: shouldContinue ? weekKey : plan.continueAnchorWeekKey,
+    })
+  }
+
+  const handleContinueChange = (enabled: boolean): void => {
+    const plan = weekPlanRef.current
+
+    if (!enabled) {
+      const assignments = { ...plan.assignments }
+      const updates: TimetableByDate = {}
+
+      if (plan.continueAnchorWeekKey && plan.continuePresetId) {
+        const anchor = plan.continueAnchorWeekKey
+        const presetId = plan.continuePresetId
+
+        monthBlocks.flatMap((block) => block.weeks).forEach((week) => {
+          if (compareWeekKeys(week.weekKey, anchor) > 0 && assignments[week.weekKey] === presetId) {
+            delete assignments[week.weekKey]
+            week.dateKeys.forEach((dateKey) => {
+              updates[dateKey] = createEmptyTimetable()
+            })
+          }
+        })
+      }
+
+      if (Object.keys(updates).length > 0) {
+        applyUpdates(updates)
+      }
+
+      persistWeekPlan({
+        ...plan,
+        assignments,
+        continueEnabled: false,
+        continuePresetId: null,
+        continueAnchorWeekKey: null,
+      })
+      return
+    }
+
+    persistWeekPlan({
+      ...plan,
+      continueEnabled: true,
+    })
+  }
+
+  const clearWeekAssignment = (weekKey: string): void => {
+    const assignments = { ...weekPlan.assignments }
+    delete assignments[weekKey]
+    persistWeekPlan({
+      ...weekPlan,
+      assignments,
+    })
+  }
+
+  const handleDeletePreset = (presetId: string): void => {
+    if (!deletePreset(presetId)) {
+      return
+    }
+
+    const assignments = { ...weekPlan.assignments }
+    Object.keys(assignments).forEach((weekKey) => {
+      if (assignments[weekKey] === presetId) {
+        delete assignments[weekKey]
+      }
+    })
+
+    const wasContinuePreset = weekPlan.continuePresetId === presetId
+    persistWeekPlan({
+      assignments,
+      continueEnabled: wasContinuePreset ? false : weekPlan.continueEnabled,
+      continuePresetId: wasContinuePreset ? null : weekPlan.continuePresetId,
+      continueAnchorWeekKey: wasContinuePreset ? null : weekPlan.continueAnchorWeekKey,
+    })
   }
 
   const startDragPaint = (dateKey: string, hour: number): void => {
     const current = ensureTimetable(mySchedulesRef.current[dateKey])[hour]
     const nextValue: 0 | 1 = current === 1 ? 0 : 1
-    const weeks = getWeekSpan(dateKey)
-    dragState.current = { active: true, value: nextValue, weeks }
-    paintHour(dateKey, hour, nextValue, weeks)
+    dragState.current = { active: true, value: nextValue }
+    paintHour(dateKey, hour, nextValue)
   }
 
   const moveDragPaint = (dateKey: string, hour: number): void => {
     if (!dragState.current.active) {
       return
     }
-    paintHour(dateKey, hour, dragState.current.value, dragState.current.weeks)
+    paintHour(dateKey, hour, dragState.current.value)
   }
 
   const stopDragPaint = (): void => {
@@ -307,13 +403,9 @@ function App() {
 
     const deltaX = event.clientX - state.x
     const deltaY = event.clientY - state.y
-    if (
-      Math.abs(deltaX) > PAINT_MOVE_THRESHOLD ||
-      Math.abs(deltaY) > PAINT_MOVE_THRESHOLD
-    ) {
+    if (Math.abs(deltaX) > PAINT_MOVE_THRESHOLD || Math.abs(deltaY) > PAINT_MOVE_THRESHOLD) {
       state.scrolling = true
       stopDragPaint()
-
       if (
         event.pointerType === 'mouse' &&
         Math.abs(deltaY) > Math.abs(deltaX) &&
@@ -321,7 +413,6 @@ function App() {
       ) {
         startDragPaint(dateKey, hour)
       }
-      return
     }
   }
 
@@ -374,6 +465,12 @@ function App() {
       })
       await persistTimetables(updates)
       setMySchedules({})
+      persistWeekPlan({
+        assignments: {},
+        continueEnabled: false,
+        continuePresetId: null,
+        continueAnchorWeekKey: null,
+      })
       setSyncStatus('リセット完了')
     } catch {
       setSyncStatus('リセット失敗')
@@ -395,103 +492,55 @@ function App() {
     return <AuthPage onAuthSuccess={handleAuthSuccess} />
   }
 
-  const cellClassForRegister = (value: number): string => {
-    return value === 1
+  const cellClassForRegister = (value: number): string =>
+    value === 1
       ? 'bg-slate-900 text-white font-medium dark:bg-sky-500 dark:text-white'
       : 'bg-white text-slate-400 border border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700'
-  }
 
-  const registerScroll = (
-    <CalendarScroll className="min-h-0 flex-1" twoDayView registerMode fitViewport pairSnap>
-      <CalendarPanBridge bind={(consume) => { consumeCalendarPanRef.current = consume }} />
-      {dateKeys.map((dateKey) => {
-        const myTimetable = ensureTimetable(mySchedules[dateKey])
-        const weekSpan = getWeekSpan(dateKey)
-
-        return (
-          <article
-            key={dateKey}
-            className="calendar-day-card register-day-card flex min-h-0 shrink-0 flex-col rounded-lg border border-slate-200 bg-white p-1.5 shadow-sm sm:w-40 sm:p-2 dark:border-slate-700 dark:bg-slate-900"
-          >
-            <h2 className="calendar-scroll-handle mb-0.5 shrink-0 text-center text-[11px] font-semibold text-slate-900 sm:mb-1 sm:text-xs dark:text-slate-100">
-              {formatDisplayDate(dateKey)}
-            </h2>
-
-            <div className="register-day-controls mb-1 shrink-0 space-y-1 sm:mb-1 sm:space-y-1">
-              <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] sm:px-2 sm:py-1.5 sm:text-xs dark:border-slate-700 dark:bg-slate-800">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setWeekSpans((prev) => ({
-                      ...prev,
-                      [dateKey]: Math.max(1, (prev[dateKey] ?? 1) - 1),
-                    }))
-                  }
-                  className="flex h-5 w-5 items-center justify-center rounded bg-white text-xs font-medium text-slate-600 hover:bg-slate-100 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
-                >
-                  -
-                </button>
-                <span className="text-slate-700 dark:text-slate-300">{weekSpan}週</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setWeekSpans((prev) => ({
-                      ...prev,
-                      [dateKey]: Math.min(4, (prev[dateKey] ?? 1) + 1),
-                    }))
-                  }
-                  className="flex h-5 w-5 items-center justify-center rounded bg-white text-xs font-medium text-slate-600 hover:bg-slate-100 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
-                >
-                  +
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-1 text-[10px] sm:gap-1 sm:text-[10px]">
-                <button
-                  type="button"
-                  onClick={() => continueSchedule(dateKey, 7)}
-                  className="rounded-md border border-slate-200 bg-white px-1 py-1 font-medium text-slate-700 hover:bg-slate-50 sm:px-1 sm:py-0.5 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                >
-                  1週間
-                </button>
-                <button
-                  type="button"
-                  onClick={() => continueSchedule(dateKey, 28)}
-                  className="rounded-md border border-slate-200 bg-white px-1 py-1 font-medium text-slate-700 hover:bg-slate-50 sm:px-1 sm:py-0.5 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                >
-                  1ヶ月
-                </button>
-              </div>
-            </div>
-
-            <div className="calendar-day-hours grid min-h-0 flex-1 grid-cols-2 gap-0.5 sm:block sm:flex-none sm:grid-cols-1 sm:gap-0 sm:space-y-0.5">
-              {HOURS.map((hour) => {
-                const myValue = myTimetable[hour]
-
-                return (
-                  <button
-                    key={`${dateKey}-${hour}`}
-                    type="button"
-                    disabled={!userId}
-                    onPointerDown={(event) => onCellPointerDown(event, dateKey, hour)}
-                    onPointerMove={(event) => onCellPointerMove(event, dateKey, hour)}
-                    onPointerEnter={(event) => onCellPointerEnter(event, dateKey, hour)}
-                    onPointerUp={(event) => onCellPointerUp(event, dateKey, hour)}
-                    onPointerCancel={onCellPointerCancel}
-                    className={`flex w-full min-h-0 select-none items-center justify-between rounded-md px-1.5 py-1 text-[10px] sm:min-h-0 sm:px-2 sm:py-1.5 sm:text-xs disabled:cursor-not-allowed disabled:opacity-50 ${cellClassForRegister(
-                      myValue,
-                    )}`}
-                  >
-                    <span className="font-mono">{hour}:00</span>
-                    <span className="text-[10px] sm:text-[10px]">{myValue === 1 ? '○' : '-'}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </article>
-        )
-      })}
-    </CalendarScroll>
+  const registerPanel = (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <RegisterSubNav mode={registerMode} onChange={setRegisterMode} />
+      {registerMode === 'day' && (
+        <RegisterDayView
+          dateKeys={dateKeys}
+          userId={userId}
+          mySchedules={mySchedules}
+          onExtendWeek={extendScheduleByOneWeek}
+          onShrinkWeek={shrinkWeekExtend}
+          canExtendWeek={canExtendWeek}
+          getWeekExtendCount={getWeekExtendCount}
+          onBindPan={(consume) => {
+            consumeCalendarPanRef.current = consume
+          }}
+          onCellPointerDown={onCellPointerDown}
+          onCellPointerMove={onCellPointerMove}
+          onCellPointerEnter={onCellPointerEnter}
+          onCellPointerUp={onCellPointerUp}
+          onCellPointerCancel={onCellPointerCancel}
+          cellClassForRegister={cellClassForRegister}
+          ensureTimetable={ensureTimetable}
+        />
+      )}
+      {registerMode === 'week' && (
+        <RegisterWeekView
+          monthBlocks={monthBlocks}
+          presets={presets}
+          weekPlan={weekPlan}
+          onAssignPreset={assignPresetToWeek}
+          onClearWeekAssignment={clearWeekAssignment}
+          onContinueChange={handleContinueChange}
+        />
+      )}
+      {registerMode === 'preset' && (
+        <PresetEditorView
+          presets={presets}
+          onNameChange={(presetId, name) => updatePreset(presetId, { name })}
+          onToggleHour={togglePresetHour}
+          onAddPreset={addPreset}
+          onDeletePreset={handleDeletePreset}
+        />
+      )}
+    </div>
   )
 
   return (
@@ -577,14 +626,14 @@ function App() {
               <GatherWeekView className="min-h-0 flex-1" dateKeys={dateKeys} allCounts={allCounts} />
             </>
           }
-          register={registerScroll}
+          register={registerPanel}
         />
 
         <section className="hidden min-h-0 flex-1 flex-col sm:flex">
           {activeTab === 'gather' ? (
             <GatherWeekView className="min-h-0 flex-1" dateKeys={dateKeys} allCounts={allCounts} />
           ) : (
-            registerScroll
+            registerPanel
           )}
         </section>
       </div>

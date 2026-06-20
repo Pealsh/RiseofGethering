@@ -148,6 +148,47 @@ html.theme-switching * {
   .calendar-scroll-register .calendar-scroll-main {
     padding-bottom: 0.5rem;
   }
+
+  .register-week-view .register-week-continue {
+    padding-block: 0.625rem;
+  }
+
+  .register-week-view .register-week-continue-toggle {
+    height: 1.75rem;
+    width: 3rem;
+  }
+
+  .register-week-view .register-week-row {
+    padding-block: 0.625rem;
+  }
+
+  .register-week-view .register-week-select {
+    min-height: 2.75rem;
+    font-size: 0.8125rem;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    padding-right: 1.75rem;
+  }
+
+  .preset-editor-view .preset-card-delete {
+    min-height: 2.5rem;
+    min-width: 3rem;
+  }
+
+  .preset-editor-view .preset-day-tab {
+    min-height: 2.25rem;
+  }
+
+  .preset-editor-view .preset-hour-cell {
+    min-height: 2.5rem;
+  }
+
+  .preset-editor-view .preset-add-btn {
+    min-height: 2.75rem;
+  }
 }
 
 @media (pointer: fine) {
